@@ -9,6 +9,8 @@ Date Created:   February 2nd, 2023
 
 import numpy as np
 from matplotlib import pyplot as plt
+import sys
+sys.path.append("../")
 
 plt.rc('text', usetex=True)
 plt.rcParams['mathtext.default']='regular'
@@ -28,20 +30,20 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
 from evaluate_MDN_AC import load_data, OLI_WAVELENGTHS
-from MDN import get_estimates, get_args
-from uncertainty_package_final.uncert_support_lib import get_sample_uncertainity
 from utilities import get_mdn_preds_full, get_mdn_uncert_ensemble, arg_median
 
 if __name__ == "__main__":
-    'Get the test data'
+    '------------------------------------------------------------------------------------------------------------------'
+    'Get the test data' #<NOT PART OF GITHUB REPOSITORY-- USER MUST PROVIDE x_test and y_test>
     folder = 'all_sites'
     ac_name = 'l2gen'
     data = *_, target, valid, cols = load_data(f'{folder}/{ac_name}')
+    x_test, y_test = data[2], data[3]
 
     'Get the Full MDN predictions'
-    outputs = get_mdn_preds_full(test_x=data[2], test_y=data[3])
+    outputs = get_mdn_preds_full(test_x=x_test, test_y=y_test)
 
-    'Now calculate the uncertainties'
+
     """
     The outputs variable of the MDN package has the structure:
         0) ScalerX
@@ -49,9 +51,10 @@ if __name__ == "__main__":
         2) estimates
         3) Distribution
     """
+    'Now calculate the uncertainties'
     'Extract the estimates and uncertainties of the ensemble'
     estimates = np.asarray(outputs['estimates'])
-    ensmeble_uncertainties = get_mdn_uncert_ensemble(ensmeble_distribution=outputs['coefs'], scaler_y_list=outputs['scalery'])
+    ensemeble_uncertainties = get_mdn_uncert_ensemble(ensmeble_distribution=outputs['coefs'], scaler_y_list=outputs['scalery'])
 
     'Get the location of the prediction closest to the median'
     est_med_loc = arg_median(estimates, axis=0)
@@ -65,7 +68,7 @@ if __name__ == "__main__":
         samp_est = []
         for jj in range(estimates.shape[2]):
             samp_est += [estimates[est_med_loc[ii, jj], ii, jj]]
-            samp_uncert += [ensmeble_uncertainties[est_med_loc[ii, jj], ii, jj]]
+            samp_uncert += [ensemeble_uncertainties[est_med_loc[ii, jj], ii, jj]]
 
         final_estimates += [np.asarray(samp_est)]
         final_uncertainties += [np.asarray(samp_uncert)]
