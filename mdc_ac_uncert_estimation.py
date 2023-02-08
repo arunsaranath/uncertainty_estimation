@@ -31,6 +31,7 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 from evaluate_MDN_AC import load_data, OLI_WAVELENGTHS
 from utilities import get_mdn_preds_full, get_mdn_uncert_ensemble, arg_median
+from MDN import get_args
 
 if __name__ == "__main__":
     '------------------------------------------------------------------------------------------------------------------'
@@ -40,8 +41,11 @@ if __name__ == "__main__":
     data = *_, target, valid, cols = load_data(f'{folder}/{ac_name}')
     x_test, y_test = data[2], data[3]
 
-    'Get the Full MDN predictions'
-    outputs = get_mdn_preds_full(test_x=x_test, test_y=y_test)
+    'Set te exact arguments for the MDN packages'
+    args = get_args()
+    args.model_loc="/Volumes/AMS_HDD/MDN_AC_model/MDN/Weights_dev"
+    '<USER DEFINED MODEL LOCATION>'
+    outputs = get_mdn_preds_full(args, test_x=x_test, test_y=y_test)
 
 
     """
