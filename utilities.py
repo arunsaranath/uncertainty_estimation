@@ -11,6 +11,8 @@ Date Created:   February 3rd, 2023
 import numpy as np
 from matplotlib import pyplot as plt
 from pathlib import Path
+import sys
+sys.path.append("..")
 
 plt.rc('text', usetex=True)
 plt.rcParams['mathtext.default']='regular'
@@ -29,13 +31,12 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
-from evaluate_MDN_AC import load_data, OLI_WAVELENGTHS
 from MDN import get_estimates, get_args, mask_land, get_tile_data
 from uncertainty_package_final.uncert_support_lib import get_sample_uncertainity
 from Plot.tile_utils import DatasetBridge
 from Plot.plot_scenes import load_Rrs
-from utils import center_image, fix_projection, get_window
-from plot_utils import get_tile_data as get_tile_rgb
+from utils import fix_projection
+from general_utilities.plot_utilities import overlay_rgb_modelPred_uncert
 
 'Base properties for imshow'
 ASPECT = 'auto'
@@ -197,127 +198,6 @@ def arg_median(X, axis=0):
     'Find the sample with smallest difference'
     return np.nanargmin(aabs, axis=axis)
 
-def colorbar(mappable, ticks_list=None, lbl_list=None,):
-    """
-    This function can be used to create a custom colorbar
-    :param mappable:
-    :param ticks_list:
-    :param lbl_list:
-    :return:
-    """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    import matplotlib.pyplot as plt
-    last_axes = plt.gca()
-    ax = mappable.axes
-    fig = ax.figure
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = fig.colorbar(mappable, cax=cax)
-    if ticks_list is not None:
-        cbar.set_ticks(ticks_list)
-        if lbl_list is not None:
-            cbar.set_ticklabels(lbl_list)
-    plt.sca(last_axes)
-    return cbar
-
-def create_satellite_uncertainty_plots(rgb_img, model_preds, extent,img_uncert=None, mu=0, sigma=1,
-                                       product_name='Parameter', pred_ticks= [-1, 0, 1, 2],
-                                       pred_labels= [r'$10^{-1}$',r'$10^{0}$', '$10^{1}$', r'$10^{2}$'],
-                                       ll=0, ul=0.25):
-    """
-    This function can be used to overlay the MDN-prediction maps over the RGB compostite of a satellite image for display
-
-    :param rgb_img: [np.ndarray, rows X cols X 3]
-    The RGB commposite of the scene
-
-    :param model_preds: [np.ndarray, rows X cols]
-    The MDN predictions for that location
-
-    :param extent: [np.array]
-    A descrtption of the extent of the location
-
-    :param img_uncert:  [np.ndarray, rows X cols]
-    The uncertainty associated with the MDN predictions for that location
-
-    :param mu: [float] (Default: 0)
-    The shifting that needs to applied to the estimated uncertainty (Default is 0 or no shifting)
-
-    :param sigma: [float] (Default: 1)
-    The scaling that needs to applied to the estimated uncertainty (Default is 0 or no scaling)
-
-    :param product_name: (string) (Default: "Parameter")
-    The name of the product that has been predicted
-
-    :param pred_tricks: (list) (Default: [-1, 0, 1, 2]])
-    A list with the colorbar for the ticks along with the MDN predictions. By default assumes log-scale range between
-    0.1 and  100
-
-    :param pred_labels: (list) (Default: [r'$10^{-1}$',r'$10^{0}$', '$10^{1}$', r'$10^{2}$'])
-    A list of labels for the  colorbar ticks of the MDN predictions.
-
-    :param ll: (float) (Default: 0)
-    Lower limit for uncertainty maps colorbar
-
-    :param ul: (float) (Default: 1)
-    Upper limit for uncertainty maps colorbar
-
-    :return: fig1: A figure with appropriate plots
-    """
-
-    'Check data properties'
-    assert rgb_img.shape[:2] == model_preds.shape[:2], f"The base RGB and prediction image should have the same" \
-                                                       f" spatial dimensions"
-    assert rgb_img.shape[2] == 3, "The <rgb_img> can only have three bands"
-    if len(model_preds.shape) == 3:
-        assert model_preds.shape[2] == 1, "This function is only set up to the overlay the predictions of a single " \
-                                          "parameter at a time"
-
-    assert len(extent) == 4, "Need to provide the spatial extent of the image to be displayed"
-    if img_uncert is not None:
-        assert rgb_img.shape[:2] == img_uncert.shape[
-                                    :2], f"The base RGB and uncertainty image should have the same spatial dimensions"
-        if len(img_uncert.shape) > 2:
-            assert model_preds.shape[2] == 1, "This function is only set up to the overlay the predictions of a single " \
-                                              "parameter at a time"
-        assert isinstance(mu, float), "The shifting fcator <mu> must be a float"
-        assert isinstance(sigma, float), "The scaling factor <sigma> must be a float"
-
-
-    'Create the basic figure and set its properties'
-    if img_uncert is not None:
-        fig1, (ax1, ax2) = plt.subplots(ncols=2, figsize=(15, 5))
-    else:
-        fig1, ax1= plt.subplots(figsize=(7,7))
-
-    fig1.patch.set_visible(True)
-    ord = 0
-
-    'Display the results - model predictions'
-    img1 = ax1.imshow(rgb_img, extent=extent, aspect=ASPECT, zorder=ord)
-    img2 = ax1.imshow(np.ma.masked_where(model_preds <= -5.9, model_preds), cmap=cmap,
-                      extent=extent, aspect=ASPECT, zorder=ord + 1)
-    ax1.set_title("Model predictions-" + product_name, fontsize=14, fontweight="bold")
-    'Apply colorbar'
-    colorbar(img2, ticks_list=pred_ticks, lbl_list=pred_labels)
-
-
-    'Display the results - model uncertainty'
-    if img_uncert is not None:
-        img3 = ax2.imshow(rgb_img, extent=extent, aspect=ASPECT, zorder=ord)
-        'Normalize uncertainty'
-        img_uncert = (img_uncert - mu) / sigma
-        img4 = ax2.imshow(np.ma.masked_where(img_uncert == (-mu /sigma), img_uncert), cmap=cmap,
-                          extent=extent, aspect=ASPECT, zorder=ord + 1)
-        ax2.set_title(r"Total Uncertainty ($\sigma_{UNC}$)", fontsize=14, fontweight="bold")
-        img4.set_clim(ll, ul)
-        colorbar(img4)
-
-    #ax2.set_xlim([-123, -121.8])
-    #ax2.set_ylim([37, 38.4])
-
-
-    return fig1
-
 def extract_sensor_data(image_name, sensor_option):
     """
     Get the rgb image associated with a specific image
@@ -413,7 +293,7 @@ def find_rgb_img(file_name):
 
 
 class create_uncertainty_maps(object):
-    def __init__(self, sensor,  n_layers=5, n_nodes=100, dropout=None,
+    def __init__(self, sensor,  n_layers=5, n_nodes=100, dropout=None, lr=1e-4, n_iter=10000,
                  model_name="/Users/arunsaranathan/SSAI/Code/uncert_hyper_experiments/experiment_1/weights_folder/MDN_3params/",
                  output='chl,tss,cdom'):
         """
@@ -439,12 +319,14 @@ class create_uncertainty_maps(object):
 
         'Set the parameters for the MDN'
         self.args = get_args()
-        #args.sensor = sensor_option
+        self.args.sensor = sensor
         self.args.no_ratio = True
         self.args.n_layers = n_layers
         self.args.n_hidden = n_nodes
         self.args.model_loc = model_name
         self.args.dropout= dropout
+        self.args.lr = lr
+        self.args.n_iter = n_iter
 
         self.args.product = output
 
@@ -523,16 +405,14 @@ class create_uncertainty_maps(object):
 
             'Get the estimates and predictions for each sample'
             outputs = get_mdn_preds_full(self.args, test_x=water_final, test_y=None,
-                                                          output_slice=slices)
+                                                          slices=slices)
             estimates = np.asarray(outputs['estimates'])
             'Get the location of the prediction closest to the median -- may need to select uncertainty of median'
             est_med_loc = arg_median(estimates, axis=0)
 
-
-
             'Create the Chl-a prediction map'
-            model_preds = np.zeros((img_data.shape[0], img_data.shape[1], estimates.shape[1]))
-            model_preds[water_pixels[0][~water_mask], water_pixels[1][~water_mask], :] = estimates
+            model_preds = np.zeros((img_data.shape[0], img_data.shape[1], estimates.shape[-1]))
+            model_preds[water_pixels[0][~water_mask], water_pixels[1][~water_mask], :] = np.median(estimates, axis=0)
 
             if not flg_uncert:
                 return model_preds
@@ -551,7 +431,7 @@ class create_uncertainty_maps(object):
                 final_uncertainties += [np.asarray(samp_uncert)]
 
             'Get the image uncertainty'
-            img_uncert = np.zeros((img_data.shape[0], img_data.shape[1], estimates.shape[1]))
+            img_uncert = np.zeros((img_data.shape[0], img_data.shape[1], estimates.shape[-1]))
             img_uncert[water_pixels[0][~water_mask], water_pixels[1][~water_mask], ] = np.squeeze(final_uncertainties)
 
         else:
@@ -582,7 +462,6 @@ if __name__ == "__main__":
     else:
         image_name = list(Path(base_folder).rglob("*L2*.[nN][cC]"))"""
     image_name = ["/Volumes/AMS_HDD/Satellite Data/chesapeake_bay/HICO/2013263142213/H2013263142213.L2_ISS_OC.nc"]
-    #image_name  = [image_name[1]]
 
     'Iterate over the the NetCDF files available for that location'
     for item in image_name:
@@ -640,9 +519,9 @@ if __name__ == "__main__":
 
         for ii in range(len(data_products)):
             'Create the figures for the specific product'
-            fig1  = create_satellite_uncertainty_plots(img_rgb, np.squeeze(model_preds[:,:, ii]),
-                                                       np.squeeze(img_uncert[:,:, ii]), data_products[ii], extent,
-                                                       0.0, 1.0)
+            fig1  = overlay_rgb_modelPred_uncert(img_rgb, np.squeeze(model_preds[:, :, ii]),
+                                                 np.squeeze(img_uncert[:,:, ii]), data_products[ii], extent,
+                                                 0.0, 1.0)
 
             fig1.savefig(f'./figures/uncert_{location}_{sensor}_{prdct_name[ii]}_glr_MDN.png', bbox_inches='tight')
 
